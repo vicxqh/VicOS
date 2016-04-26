@@ -37,17 +37,47 @@ void terminal_putentryat(char c, uint8_t color, size_t x, size_t y)
 	terminal_buffer[index] = make_vgaentry(c, color);
 }
 
+static void terminal_scroll(){
+    //todo
+}
 void terminal_putchar(char c)
 {
-	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
-	if ( ++terminal_column == VGA_WIDTH )
-	{
-		terminal_column = 0;
-		if ( ++terminal_row == VGA_HEIGHT )
-		{
-			terminal_row = 0;
-		}
+    // Handle a backspace, by moving the cursor back one space
+	if (c == 0x08 && terminal_column){
+	    terminal_column--;
 	}
+	
+	// Handle a tab by increasing the cursor's X, but only to a point
+	// where it is divisible by 8.
+	else if (c == 0x09){
+	    terminal_column = (terminal_column+8) & ~(8-1);
+	}
+	
+	// Handle carriage return
+	else if (c == '\r'){
+	    terminal_column = 0;
+	}
+	
+	// Handle newline by moving cursor back to left and increasing the row
+	else if (c == '\n'){
+		terminal_column = 0;
+		terminal_row++;
+	}
+	// Handle any other printable character.
+	else if(c >= ' '){
+		terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
+		if (++terminal_column == VGA_WIDTH) {
+			terminal_column = 0;
+			if (++terminal_row == VGA_HEIGHT) {
+ 				terminal_row = 0;
+			}
+		}	
+	}
+	
+	if (terminal_row == VGA_HEIGHT){
+		terminal_scroll();
+	}
+
 }
 
 void terminal_write(const char* data, size_t size)

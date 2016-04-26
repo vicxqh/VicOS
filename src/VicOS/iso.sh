@@ -8,7 +8,9 @@ mkdir -p isodir/boot/grub
 
 cp sysroot/boot/osv.kernel isodir/boot/osv.kernel
 cat > isodir/boot/grub/grub.cfg << EOF
-menuentry "osv(Vic's toy os" {
+timeout=1
+
+menuentry "osv(Vic's toy OS)" {
 	multiboot /boot/osv.kernel
 }
 EOF
