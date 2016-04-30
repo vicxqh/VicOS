@@ -80,7 +80,6 @@ static idt_entry create_entry(uint32_t addr, uint16_t selector, uint8_t flag){
 
 void isr_dispatcher(registers_t *regs){
     printf("Received interrupt : %d\n", regs->int_no);
-
 }
 
 void register_i_handler(int num, i_handler h){
