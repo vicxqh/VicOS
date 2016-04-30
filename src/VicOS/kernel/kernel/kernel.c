@@ -27,5 +27,4 @@ void kernel_main(void)
     unregister_i_handler(3);
     printf("Sending int 3...\n");
     asm volatile ("int $0x3");
-
 }
