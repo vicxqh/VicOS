@@ -1,6 +1,7 @@
 #include <kernel/gdt.h>
+#include <stdio.h>
 
-gdt_entry entrys[5];
+gdt_entry gdt_entrys[5];
 gdt_descriptor gdtd;
 
 extern void _flush_gdt(uint32_t gdtp);
@@ -24,15 +25,19 @@ static gdt_entry create_entry(uint32_t base, uint32_t limit, uint16_t flag){
 }
 
 void init_gdt(){
+    printf("Loading GDT...\n");
     gdtd.limit = (sizeof(gdt_entry) * 5) - 1;
-    gdtd.base = (uint32_t)entrys;
+    gdtd.base = (uint32_t)gdt_entrys;
 
+    printf("\tGDT DESCRIPTOR ADDRESS: %x\n", &gdtd);
+    printf("\tLimit: %x\n", gdtd.limit);
+    printf("\tBase: %x\n", gdtd.base);
     //Fill data to gdt entries
-    entrys[0] = create_entry(0, 0, 0); //Needed
-    entrys[1] = create_entry(0, 0x000FFFFF, (GDT_CODE_PL0));   // Ring 0 code section
-    entrys[2] = create_entry(0, 0x000FFFFF, (GDT_DATA_PL0));   // Ring 0 data section
-    entrys[3] = create_entry(0, 0x000FFFFF, (GDT_CODE_PL3));   // Ring 3 code section
-    entrys[4] = create_entry(0, 0x000FFFFF, (GDT_DATA_PL3));   // Ring 3 data section
+    gdt_entrys[0] = create_entry(0, 0, 0); //Needed
+    gdt_entrys[1] = create_entry(0, 0x000FFFFF, (GDT_CODE_PL0));   // Ring 0 code section
+    gdt_entrys[2] = create_entry(0, 0x000FFFFF, (GDT_DATA_PL0));   // Ring 0 data section
+    gdt_entrys[3] = create_entry(0, 0x000FFFFF, (GDT_CODE_PL3));   // Ring 3 code section
+    gdt_entrys[4] = create_entry(0, 0x000FFFFF, (GDT_DATA_PL3));   // Ring 3 data section
 
     _flush_gdt((uint32_t)&gdtd);
 

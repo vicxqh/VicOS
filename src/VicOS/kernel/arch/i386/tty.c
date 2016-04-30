@@ -38,7 +38,18 @@ void terminal_putentryat(char c, uint8_t color, size_t x, size_t y)
 }
 
 static void terminal_scroll(){
-    //todo
+    int index = 0;
+    for (int i = 0; i < VGA_HEIGHT - 1; i++){
+        for (int j = 0; j < VGA_WIDTH; j++){
+            terminal_buffer[index] = terminal_buffer[index + VGA_WIDTH];
+            index++;
+        } 
+    }
+    //clear last line
+    for (int i = 0; i < VGA_WIDTH; i++){
+        terminal_buffer[index++] = make_vgaentry(' ', terminal_color);
+    }
+    terminal_row--;
 }
 void terminal_putchar(char c)
 {
