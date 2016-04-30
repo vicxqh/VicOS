@@ -80,7 +80,11 @@ static idt_entry create_entry(uint32_t addr, uint16_t selector, uint8_t flag){
 
 void isr_dispatcher(registers_t *regs){
     printf("Received interrupt : %d\n", regs->int_no);
-
+    if (!i_handlers[regs->int_no]){
+        printf("No handler for interrupt 0x%x\n", regs->int_no);
+    } else {
+        i_handlers[regs->int_no](regs);
+    }
 }
 
 void register_i_handler(int num, i_handler h){
@@ -88,5 +92,13 @@ void register_i_handler(int num, i_handler h){
         printf("Cannot register interrupt handler for index %d", num);
         return;
     }   
-    //TODO
+    i_handlers[num] = h;
+}
+
+void default_i_handler(registers_t *regs){
+    printf("Default interrupt handler recevice interrupt 0x%x, but doing nothing\n", regs->int_no);
+}
+
+void unregister_i_handler(int num){
+    memset(i_handlers + num, 0, sizeof(i_handler)); 
 }

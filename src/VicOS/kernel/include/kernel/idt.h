@@ -39,6 +39,10 @@ typedef void (*i_handler)(registers_t *);
 //Allows us to register an interrupt handler.
 void register_i_handler(int num, i_handler h);
 
+void unregister_i_handler(int num);
+
+void default_i_handler(registers_t *regs);
+
 typedef uint64_t idt_entry;
 
 void init_idt();
