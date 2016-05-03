@@ -14,17 +14,12 @@ void kernel_early(void)
     printf("GDT Loaded!\n");
     init_idt();
     printf("IDT Loaded!\n");
+
 }
 
 void kernel_main(void)
 {
 	printf("Hello, kernel World!\n");
-    register_i_handler(3, default_i_handler);
-    printf("Sending int 3...\n");
-    asm volatile ("int $0x3");
-    printf("Sending int 4...\n");
-    asm volatile ("int $0x4");
-    unregister_i_handler(3);
-    printf("Sending int 3...\n");
-    asm volatile ("int $0x3");
+//    asm volatile ("int $0x20");
+    while(1);
 }

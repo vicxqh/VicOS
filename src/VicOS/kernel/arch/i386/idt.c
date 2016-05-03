@@ -1,6 +1,8 @@
 #include <kernel/idt.h>
 #include <string.h>
 #include <stdio.h>
+#include <kernel/cpu.h>
+
 
 static idt_entry idt_entrys[256];
 static idt_descriptor idtd;
@@ -9,9 +11,33 @@ static i_handler i_handlers[256];
 extern void _flush_idt(uint32_t idtd);
 
 static idt_entry create_entry(uint32_t addr, uint16_t selector, uint8_t flag);
+static void remap_pic();
+
+//Disable LAPIC if there is one
+static void disable_local_apic();
+
+
+// For more explanation of the following inline method 
+//  see: http://wiki.osdev.org/Inline_Assembly/Examples#I.2FO_access
+static inline void outb(uint16_t port, uint8_t val){
+    asm volatile ( "outb %0, %1" : : "a"(val), "Nd"(port)  );
+}
+static inline uint8_t inb(uint16_t port){
+    uint8_t ret;
+    asm volatile ( "inb %1, %0" 
+            : "=a"(ret)
+            : "Nd"(port) );
+
+    return ret;
+}
+static inline void io_wait(){
+    asm volatile ( "outb %%al, $0x80" : : "a"(0)  );
+}
 
 void init_idt(){
     printf("Loading IDT ...\n");
+
+    disable_local_apic();
 
     // Clear all entrys 
     memset(idt_entrys, 0, sizeof(idt_entry) * 256);
@@ -24,9 +50,10 @@ void init_idt(){
     printf("\tIDT DESCRIPTOR ADDRESS: %x\n", &idtd);
     printf("\tLimit: %x\n", idtd.limit);
     printf("\tLase: %x\n", idtd.base);
-
+    
     //Should remap pic
-
+    remap_pic();
+    
     idt_entrys[0]= create_entry((uint32_t)isr0, 0x8, KERNEL_32_BIT_INT_GATE);
     idt_entrys[1]= create_entry((uint32_t)isr1, 0x8, KERNEL_32_BIT_INT_GATE);
     idt_entrys[2]= create_entry((uint32_t)isr2, 0x8, KERNEL_32_BIT_INT_GATE);
@@ -59,9 +86,28 @@ void init_idt(){
     idt_entrys[29]= create_entry((uint32_t)isr29, 0x8, KERNEL_32_BIT_INT_GATE);
     idt_entrys[30]= create_entry((uint32_t)isr30, 0x8, KERNEL_32_BIT_INT_GATE);
     idt_entrys[31]= create_entry((uint32_t)isr31, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[255]= create_entry((uint32_t)isr255, 0x8, KERNEL_32_BIT_INT_GATE);
 
+    //FOR PIC ISR
+    idt_entrys[IRQ0] = create_entry((uint32_t)irq0, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ1] = create_entry((uint32_t)irq1, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ2] = create_entry((uint32_t)irq2, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ3] = create_entry((uint32_t)irq3, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ4] = create_entry((uint32_t)irq4, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ5] = create_entry((uint32_t)irq5, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ6] = create_entry((uint32_t)irq6, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ7] = create_entry((uint32_t)irq7, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ8] = create_entry((uint32_t)irq8, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ9] = create_entry((uint32_t)irq9, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ10] = create_entry((uint32_t)irq10, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ11] = create_entry((uint32_t)irq11, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ12] = create_entry((uint32_t)irq12, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ13] = create_entry((uint32_t)irq13, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ14] = create_entry((uint32_t)irq14, 0x8, KERNEL_32_BIT_INT_GATE);
+    idt_entrys[IRQ15] = create_entry((uint32_t)irq15, 0x8, KERNEL_32_BIT_INT_GATE);
     //Call asm to flush idt
     _flush_idt((uint32_t)&idtd);
+//    asm volatile ("int $0x20");
 
 }
 
@@ -87,6 +133,20 @@ void isr_dispatcher(registers_t *regs){
     }
 }
 
+void irq_handler(registers_t *regs){
+    printf("Received irq : %d\n", regs->err_code);
+    
+    isr_dispatcher(regs);
+    
+    //Send EOI to PIC
+    if (regs->err_code >= 8){ //Also send EOI to slave chip
+        outb(PIC2_COMMAND,PIC_EOI);
+    }
+    outb(PIC1_COMMAND,PIC_EOI);
+
+}
+
+
 void register_i_handler(int num, i_handler h){
     if (num < 0 || num > 255){
         printf("Cannot register interrupt handler for index %d", num);
@@ -101,4 +161,55 @@ void default_i_handler(registers_t *regs){
 
 void unregister_i_handler(int num){
     memset(i_handlers + num, 0, sizeof(i_handler)); 
+}
+
+static void remap_pic(){
+    unsigned char a1, a2;
+    
+    // save masks
+    a1 = inb(PIC1_DATA);
+   a2 = inb(PIC2_DATA);
+
+    //reinitialize pic
+    outb(PIC1_COMMAND, ICW1_INIT+ICW1_ICW4);    //starts the initialization sequence (in cascade mode)
+    io_wait();  //on older machines its necessary to give the PIC some time to react to commands as they might not be processed quickly
+    outb(PIC2_COMMAND, ICW1_INIT+ICW1_ICW4);
+    io_wait();
+    outb(PIC1_DATA, ICW2_PIC1);     //ICW2: Master PIC vector offset
+    io_wait();
+    outb(PIC2_DATA, ICW2_PIC2);   //ICW2: Slave PIC vector offset
+    io_wait();
+    outb(PIC1_DATA, 4);         //ICW3: tell Master PIC that there is a slave PIC at IRQ2 (0000 0100)
+    io_wait();
+    outb(PIC2_DATA, 2);     //ICW3: tell Slave PIC its cascade identity (0000 0010)
+    io_wait();
+
+    outb(PIC1_DATA, ICW4_8086);
+    io_wait();
+    outb(PIC2_DATA, ICW4_8086);
+    io_wait();
+
+    outb(PIC1_DATA, 1);
+
+    // Restore masks
+ //   outb(PIC1_DATA, a1);
+    outb(PIC2_DATA, a2);
+}
+
+extern void _test();
+
+static void disable_local_apic(){
+    uint32_t eax;
+    uint32_t edx;
+    
+    cpuid(1, &eax, &edx);
+
+    if (edx & CPUID_FLAG_APIC ){
+        printf("Deteced APIC, will disable it.\n");
+        if (edx & CPUID_FLAG_MSR){
+            _test();
+        } else {
+            printf("No MSR detected!\n");
+        }
+    }
 }
